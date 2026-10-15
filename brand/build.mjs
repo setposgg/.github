@@ -4,7 +4,7 @@
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createRequire, stripTypeScriptTypes } from 'node:module';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const out = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(process.argv[2] || path.join(out, '../../..'));
@@ -17,7 +17,12 @@ const font = async (file) => (await fs.readFile(path.join(root, 'node_modules', 
 const fonts = `@font-face{font-family:DM;src:url(data:font/woff2;base64,${await font('@fontsource-variable/dm-sans/files/dm-sans-latin-opsz-normal.woff2')});font-weight:100 1000}@font-face{font-family:Chakra;src:url(data:font/woff2;base64,${await font('@fontsource/chakra-petch/files/chakra-petch-latin-700-normal.woff2')});font-weight:700}`;
 const logo = await read('assets/brand/setpos-logo.svg');
 const mark = await read('static/favicon.svg');
-const avatar = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"><title>setpos.gg</title><rect width="1000" height="1000" fill="#0b1320"/><svg x="160" y="160" width="680" height="680" viewBox="35 34.6281 199.65 200">${mark.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')}</svg></svg>`;
+// Avatar: the gold sight alone on black, 70% of the square's height (GitHub crops orgs to a rounded square).
+const sight = mark.match(/<path d="([^"]+)" fill="#0B1320"/)[1];
+const sightBox = { x: 64.6401, y: 59.0386, w: 140.3799, h: 151.2182 }; // its bounding box in favicon.svg
+const sightScale = 700 / sightBox.h;
+const sightAt = (c, size) => (500 - (c + size / 2) * sightScale).toFixed(3);
+const avatar = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"><title>setpos.gg</title><rect width="1000" height="1000" fill="#000"/><path transform="translate(${sightAt(sightBox.x, sightBox.w)} ${sightAt(sightBox.y, sightBox.h)}) scale(${sightScale.toFixed(5)})" d="${sight}" fill="#F2C66D"/></svg>`;
 await fs.writeFile(path.join(out, 'avatar.svg'), avatar + '\n');
 const radar = await read('static/radars/mirage/radar.svg');
 const data = JSON.parse(await read('src/lib/competitive-spawns.json'));
@@ -33,11 +38,8 @@ const w = Math.max(...points.map(p=>p.x))-minX+28, h = Math.max(...points.map(p=
 const size = Math.max(w,h);
 const vb = `${minX-(size-w)/2} ${minY-(size-h)/2} ${size} ${size}`;
 const spawnRadar = radar.replace(/viewBox="[^"]*"/, `viewBox="${vb}"`).replace(/<\/svg>\s*$/, `${points.map(p=>`<g><circle cx="${p.x}" cy="${p.y}" r="5.5" fill="#f2c66d" stroke="#0b1320" stroke-width="1.2"/><text x="${p.x}" y="${p.y+0.3}" dominant-baseline="middle" text-anchor="middle" font-family="Arial,sans-serif" font-size="5.8" font-weight="700" fill="#0b1320">${p.n}</text></g>`).join('')}</svg>`);
-// Import the site's actual renderer, including after its move to the public package.
-const source = await read('src/lib/crosshair.ts');
-const crosshair = /\bfrom\s+['"]/.test(source)
-  ? await import(pathToFileURL(path.join(root, 'src/lib/crosshair.ts')))
-  : await import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source)).toString('base64')}`);
+// The crosshair comes from @setposgg/cs2-crosshair, the same package setpos.gg draws with.
+const crosshair = await import(pathToFileURL(path.join(root, 'node_modules/@setposgg/cs2-crosshair/dist/index.js')).href);
 const { crosshairDrawing, DEFAULT_CROSSHAIR, SITE_CROSSHAIR } = crosshair;
 const examples = [
   ['Classic static', SITE_CROSSHAIR],
